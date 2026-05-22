@@ -7,7 +7,7 @@
 #
 ################################################################################
 # \copyright
-# Copyright 2018-2024, Cypress Semiconductor Corporation (an Infineon company)
+# Copyright 2018-2026, Cypress Semiconductor Corporation (an Infineon company)
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -46,11 +46,11 @@ TARGET=CYSBSYSKIT-DEV-01
 #
 # If APPNAME is edited, ensure to update or regenerate launch
 # configurations for your IDE.
-APPNAME=mtb-example-psoc6-cmos-radar-motion-detection
+APPNAME=mtb-example-xensiv-bgt60cutrxx-motion-detection
 
 # Name of toolchain to use. Options include:
 #
-# GCC_ARM -- GCC provided with ModusToolbox software
+# GCC_ARM -- GCC is available as part of ModusToolbox Setup program
 # ARM     -- ARM Compiler (must be installed separately)
 # IAR     -- IAR Compiler (must be installed separately)
 #
@@ -101,7 +101,7 @@ SOURCES=
 INCLUDES=
 
 # Add additional defines to the build process (without a leading -D).
-DEFINES=CY_RETARGET_IO_CONVERT_LF_TO_CRLF
+DEFINES=
 
 # Select softfp or hardfp floating point. Default is softfp.
 VFP_SELECT=
@@ -110,13 +110,21 @@ VFP_SELECT=
 #
 # NOTE: Includes and defines should use the INCLUDES and DEFINES variable
 # above.
-CFLAGS=
+ifeq ($(TOOLCHAIN), IAR)
+    CFLAGS += --warnings_are_errors --diag_suppress=Pa205,Pe550
+else
+    CFLAGS += -Werror
+endif
 
 # Additional / custom C++ compiler flags.
 #
 # NOTE: Includes and defines should use the INCLUDES and DEFINES variable
 # above.
-CXXFLAGS=
+ifeq ($(TOOLCHAIN), IAR)
+    CXXFLAGS += --warnings_are_errors
+else
+    CXXFLAGS += -Werror
+endif
 
 # Additional / custom assembler flags.
 #
@@ -161,15 +169,6 @@ CY_GETLIBS_SHARED_PATH=../
 # Directory name of the shared repo location.
 #
 CY_GETLIBS_SHARED_NAME=mtb_shared
-
-# Absolute path to the compiler's "bin" directory. The variable name depends on the
-# toolchain used for the build. Refer to the ModusToolbox user guide to get the correct
-# variable name for the toolchain used in your build.
-#
-# The default depends on the selected TOOLCHAIN (GCC_ARM uses the ModusToolbox
-# software provided compiler by default).
-CY_COMPILER_GCC_ARM_DIR=
-
 
 # Locate ModusToolbox helper tools folders in default installation
 # locations for Windows, Linux, and macOS.

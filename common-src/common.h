@@ -25,12 +25,55 @@
 #ifndef COMMON_H
 #define COMMON_H
 
+#include <stdbool.h>
 #include <stdio.h>
 #include <inttypes.h>
 #include "radar_clustering.h"
 #include "radar_motion_detection.h"
 #include "radar_clutter_localization.h"
 #include "xensiv_bgt60cutrxx.h"
+
+/**
+ * @brief Zoning event structure from algoapi.
+ *
+ * The structure describes the zone grid edges/angles and list of
+ * active zones. Angles are in degrees and ranges are in meters.
+ * Main purpose is to share the zoning configuration to the visualization tool.
+ * Each entry is optional and can be set to NULL if not required.
+ */
+typedef struct
+{
+    uint8_t num_ranges;     /**< Number of entries in @ref ranges. */
+    float* ranges;          /**< Range boundaries in meters. */
+
+    uint8_t num_azimuths;   /**< Number of entries in @ref azimuths. */
+    float* azimuths;        /**< Azimuth boundaries in degrees. */
+
+    uint8_t num_elevations; /**< Number of entries in @ref elevations. */
+    float* elevations;      /**< Elevation boundaries in degrees. */
+
+    uint8_t num_actives;    /**< Number of active zone index pairs in @ref active. */
+    uint8_t(*active)[2];    /**< Active zones as [range_idx, azimuth_idx] pairs. */
+} algo_zoning_event_t;
+
+/**
+ * @brief Builds zoning configuration data for protocol/visualization output.
+ *
+ * The function computes evenly spaced range boundaries from the provided radar
+ * range resolution and chirp sample count, and fills a shared configuration
+ * structure with those boundaries plus predefined azimuth angles.
+ *
+ * @param range_resolution_m Range resolution in meters per bin.
+ * @param samples_per_chirp Number of samples per chirp.
+ * @param num_range_zones Number of range zones to generate.
+ * @return Pointer to an internally stored zoning configuration structure.
+ *
+ * @note The returned pointer refers to static storage that is overwritten on
+ * each call.
+ */
+const algo_zoning_event_t* get_zone_config(float range_resolution_m, uint32_t samples_per_chirp,
+                                           uint8_t num_range_zones);
+
 /**
  * @brief Prints the presence status in JSON format.
  *
@@ -55,8 +98,9 @@ void print_presence(bool presence, uint32_t counter);
  *
  * @param motion_detection Pointer to the motion detection structure containing target data.
  * @param counter The current timestamp or counter value.
+ * @param print_attributes Flag indicating whether to print attributes.
  */
-void print_detections(motion_detection_t* motion_detection, uint32_t counter);
+void print_detections(motion_detection_t* motion_detection, uint32_t counter, bool print_attributes);
 
 /** @brief Prints the clutter zones in JSON format.
  *
@@ -98,8 +142,18 @@ void print_calibration_data(xensiv_bgt60cutrxx_calibration_data_t* calibration_s
  *
  * @param clustering Pointer to the clustering structure containing data.
  * @param counter The current timestamp or counter value.
+ * @param print_attributes Flag indicating whether to print attributes.
  */
-void print_clustering_results(clustering_t* clustering, uint32_t counter);
+void print_clustering_results(clustering_t* clustering, uint32_t counter, bool print_attributes);
+
+/** @brief Prints the zoning event in JSON format.
+ *
+ * This function prints the zoning event data in a JSON-like format.
+ *
+ * @param event Pointer to the zoning event structure.
+ * @param counter The current timestamp or counter value.
+ */
+void print_algo_zoning_event(const algo_zoning_event_t* event, uint32_t counter);
 
 /** @brief Prints the processing times of motion detection, clutter localization, and clustering algorithms.
  *

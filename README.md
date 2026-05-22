@@ -1,69 +1,104 @@
-# PSOC&trade; 6 MCU: Motion detection using XENSIV&trade; 60 GHz radar
+# PSOC&trade; 6 MCU: Motion detection using XENSIV&trade; BGT60CUTR13AIP CMOS radar sensor
 
-This code example demonstrates Infineon's radar capabilities by implementing the on-chip feature for motion detection and static presence detection on the connected sensor kit (CSK) hardware platform.
+This code example demonstrates XENSIV&trade; BGT60CUTR13AIP CMOS 60 GHz radar sensor capabilities by implementing the on-chip feature for motion detection and static presence detection on the connected sensor kit (CSK) hardware platform
 
-**Platform:** This is the connected sensor kit (CSK) bare-metal version for CYSBSYSKIT-DEV-01. The key features are:
+<!-- \cond NOTDOXYGEN -->
+
+## Table of contents
+
+- [PSOC™ 6 MCU: Motion detection using XENSIV™ BGT60CUTR13AIP CMOS radar sensor](#psoc-6-mcu-motion-detection-using-xensiv-bgt60cutr13aip-cmos-radar-sensor)
+  - [Table of contents](#table-of-contents)
+  - [Platform](#platform)
+  - [Software requirements](#software-requirements)
+    - [ModusToolbox™ (MTB)](#modustoolbox-mtb)
+      - [Supported toolchains (make variable 'TOOLCHAIN')](#supported-toolchains-make-variable-toolchain)
+    - [Terminal emulator](#terminal-emulator)
+    - [Optional software](#optional-software)
+  - [Hardware setup: Rapid IoT Connect Developer Kit (CSK)](#hardware-setup-rapid-iot-connect-developer-kit-csk)
+  - [Using the code example](#using-the-code-example)
+    - [Create the project](#create-the-project)
+    - [Open the project](#open-the-project)
+  - [Operation](#operation)
+  - [Debugging](#debugging)
+  - [Design and implementation](#design-and-implementation)
+    - [Radar configuration](#radar-configuration)
+      - [Table 1. Radar configurations for Motion Detection](#table-1-radar-configurations-for-motion-detection)
+      - [Indoor presence detection (indoor\_presence\_detection.h)](#indoor-presence-detection-indoor_presence_detectionh)
+    - [Application execution](#application-execution)
+    - [Runtime information](#runtime-information)
+      - [Table 3. Runtime information based on clock speed 100.00 MHz](#table-3-runtime-information-based-on-clock-speed-10000-mhz)
+  - [Related resources](#related-resources)
+  - [Other resources](#other-resources)
+  - [Document history](#document-history)
+
+<!-- \endcond -->
+
+## Platform
+
+This is the connected sensor kit (CSK) bare-metal version for CYSBSYSKIT-DEV-01. The key features are:
 
 - Uses SPI frequency of 18.75 MHz
 - DEBUG UART pins for communication
 - Includes LED initialization and control
 - Performance measurement capability with timer
-- Error handling on motion detection processing
-- 5 s UART initialization delay
-- Special radar configuration for Japanese market compliance available as header file, e.g. indoor_motion_low_power_japan.h
-
-For further information, please visit the website <https://www.infineon.com/design-resources/development-tools>. On this website you will also find the Xensiv CMOS Radar Visualization Tool, which can be used to visualize the radar data and detections from this code example.
+- Three-stage processing: motion detection, clustering and clutter localization
+- JSON protocol output with host command handling (e.g. `get_info` to query version and sensor info)
+- Default power mode set to deep sleep (`DEEP_SLEEP_MODE`)
+- Five second UART initialization delay
+- Special radar configuration for Japanese market compliance available as header file with suffix _japan.h, e.g. indoor_motion_low_power_japan.h
 
 [View this README on GitHub.](https://github.com/Infineon/mtb-example-psoc6-cmos-radar-motion-detection)
 
-## Requirements
+## Software requirements
 
-- [ModusToolbox&trade;](https://www.infineon.com/modustoolbox) v3.4 or later (tested with v3.4)
+### ModusToolbox&trade; (MTB)
+
+Downlaod the ModusToolbox&trade; from [Infineon developer center](https://www.infineon.com/design-resources/development-tools/sdk/modustoolbox-software).
+
+Please make sure to download the ModusToolbox&trade; tools package using MTB Setup tools program as it take care of any conflicts within the tools. You can find this MTB setup tool from MTB Dashboard after installing ModusToolbox&trade;. See the [ModusToolbox&trade; tools package installation guide](https://www.infineon.com/ModusToolboxInstallguide) for information about installing and configuring the tools package.
+
+- [ModusToolbox&trade;](https://www.infineon.com/modustoolbox) v3.4 or later
 - Board support package (BSP) minimum required version: 5.0.0
 - Programming language: C
 - Associated parts: All [PSOC&trade; 6 MCU](https://www.infineon.com/cms/en/product/microcontroller/32-bit-psoc-arm-cortex-microcontroller/psoc-6-32-bit-arm-cortex-m4-mcu) parts
 
-## Supported toolchains (make variable 'TOOLCHAIN')
+#### Supported toolchains (make variable 'TOOLCHAIN')
 
-- GNU Arm&reg; Embedded Compiler v11.3.1 (`GCC_ARM`) – Default value of `TOOLCHAIN`
+- GNU Arm&reg; Minimum Embedded Compiler v11.3.1 (`GCC_ARM`) – Default value of `TOOLCHAIN`
 - Arm&reg; Compiler v6.22 (`ARM`)
 - IAR C/C++ Compiler v9.50.2 (`IAR`)
 
-## Supported kits (make variable 'TARGET')
+### Terminal emulator
+
+Install a terminal emulator if you do not have one. Instructions in this document use [Tera Term](https://teratermproject.github.io/index-en.html). Other popular terminal emulators include Putty, RealTerm, and CoolTerm. This code examples requires baud rate of 2000000, with rest as default UART settings for the terminal connection.
+
+### Optional software
+
+This example requires no additional software or tools. However, for radar data visualization and analysis, you can use the XENSIV&trade; CMOS Radar Visualization Tool. This visualization tool can connect to the CSK kit via COM port serial interface and can display the radar data (like detection events with range, angle and speed information) in real-time. For further information, please visit the website <https://www.infineon.com/design-resources/development-tools> to download this tool.
+
+## Hardware setup: Rapid IoT Connect Developer Kit (CSK)
 
 - [Rapid IoT Connect Developer Kit](https://github.com/Infineon/TARGET_CYSBSYSKIT-DEV-01) (`CYSBSYSKIT-DEV-01`) – Default value of `TARGET`
-
-## Hardware setup
-
-### For the Rapid IoT Connect Developer Kit
-
-This code example requires the XENSIV&trade; BGT60CUTR13C radar wing board as part of the connected sensor kit.
+  
+This code example requires the XENSIV&trade; BGT60CUTR13AIP radar Wing board as part of the connected sensor kit.
 
 1. Connect the radar shield to the CYSBSYSKIT-DEV-01 kit through the pin headers
-  
-   ![](images/radar-shield.png)
 
-   **Figure 1. Radar board**
+   ![Radar wing board](images/radar-shield.png)
+
+   **Figure 1. Radar wing board**
 
 2. Connect the CYSBSYSKIT-DEV-01 kit to the PC with the USB cable
 
-   ![](images/featherkit.png)
+   ![Rapid IoT Connect Developer Kit](images/featherkit.png)
 
    **Figure 2. Rapid IoT Connect Developer Kit**
 
 3. Place the CYSBSYSKIT-DEV-01 kit at a fixed location (for example, the corner of a room) to ensure optimal performance of the presence detection application
 
-4. Ensure that the horizontal orientation of the radar shield is on E-plane, which is indicated on the PCB of the radar shield close to the antenna array with an "E" marking
+4. Ensure that the horizontal orientation of the radar wing board is on E-plane, which is indicated on the PCB of the radar wing board close to the antenna array with an "E" marking
 
 > **Note:** The PSOC&trade; 6 Bluetooth&reg; LE Pioneer Kit (CY8CKIT-062-BLE) and the PSOC&trade; 6 Wi-Fi Bluetooth&reg; Pioneer Kit (CY8CKIT-062-WIFI-BT) ship with KitProg2 installed. ModusToolbox&trade; requires KitProg3. Before using this code example, make sure that the board is upgraded to KitProg3. The tool and instructions are available in the [Firmware Loader](https://github.com/Infineon/Firmware-loader) GitHub repository. If you do not upgrade, you will see an error like "unable to find CMSIS-DAP device" or "KitProg firmware is out of date".
-
-## Software setup
-
-See the [ModusToolbox&trade; tools package installation guide](https://www.infineon.com/ModusToolboxInstallguide) for information about installing and configuring the tools package.
-
-Install a terminal emulator if you do not have one. Instructions in this document use [Tera Term](https://teratermproject.github.io/index-en.html).
-
-This example requires no additional software or tools.
 
 ## Using the code example
 
@@ -77,7 +112,7 @@ The ModusToolbox&trade; tools package provides the Project Creator as both a GUI
 
    There are several ways to do this, including launching it from the dashboard or from inside the Eclipse IDE. For more details, see the [Project Creator user guide](https://www.infineon.com/ModusToolboxProjectCreator) (locally available at *{ModusToolbox&trade; install directory}/tools_{version}/project-creator/docs/project-creator.pdf*)
 
-2. On the **Choose Board Support Package (BSP)** page, select a kit supported by this code example. See [Supported kits](#supported-kits-make-variable-target)
+2. On the **Choose Board Support Package (BSP)** page, select a kit supported by this code example. See [Supported kits](#hardware-setup-rapid-iot-connect-developer-kit-csk)
 
    > **Note:** To use this code example for a kit not listed here, you may need to update the source files. If the kit does not have the required resources, the application may not work
 
@@ -105,16 +140,17 @@ Use a CLI terminal to invoke the 'project-creator-cli' tool. On Windows, use the
 
 The following example clones the "[Motion Detection](https://github.com/Infineon/mtb-example-psoc6-cmos-radar-motion-detection)" application with the desired name "my-motion-detection" configured for the ** BSP into the specified working directory, *./mtb_projects*:
 
-   ```
-   project-creator-cli --board-id CYSBSYSKIT-DEV-01 --app-id mtb-example-psoc6-cmos-radar-motion-detection --user-app-name my-motion-detection --target-dir ./mtb_projects
+   ```bash
+   mkdir "C:/mtb_projects"
+   project-creator-cli --board-id CYSBSYSKIT-DEV-01 --app-id mtb-example-psoc6-cmos-radar-motion-detection --user-app-name my-motion-detection --target-dir "C:/mtb_projects"
    ```
 
 The 'project-creator-cli' tool has the following arguments:
 
 Argument | Description | Required/optional
 ---------|-------------|-----------
-`--board-id` | Defined in the <id> field of the [BSP](https://github.com/Infineon?q=bsp-manifest&type=&language=&sort=) manifest | Required
-`--app-id`   | Defined in the <id> field of the [CE](https://github.com/Infineon?q=ce-manifest&type=&language=&sort=) manifest | Required
+`--board-id` | Defined in the \<id> field of the [BSP](https://github.com/Infineon?q=bsp-manifest&type=&language=&sort=) manifest | Required
+`--app-id`   | Defined in the \<id> field of the [CE](https://github.com/Infineon?q=ce-manifest&type=&language=&sort=) manifest | Required
 `--target-dir`| Specify the directory in which the application is to be created if you prefer not to use the default current working directory | Optional
 `--user-app-name`| Specify the name of the application if you prefer to have a name other than the example's default name | Optional
 
@@ -195,13 +231,13 @@ If using a PSOC&trade; 64 "Secure" MCU kit (like CY8CKIT-064B0S2-4343W), the PSO
 
      From the terminal, execute the `make program` command to build and program the application using the default toolchain to the default target. The default toolchain is specified in the application's Makefile but you can override this value manually:
 
-      ```
+      ```bash
       make program TOOLCHAIN=<toolchain>
       ```
 
       Example:
 
-      ```
+      ```bash
       make program TOOLCHAIN=GCC_ARM
       ```
 
@@ -211,7 +247,7 @@ If using a PSOC&trade; 64 "Secure" MCU kit (like CY8CKIT-064B0S2-4343W), the PSO
 
    **Figure 3. Terminal output on program startup**
 
-   ![](images/app_init.png)
+   ![Terminal output on program startup](images/app_init.png)
 
 ## Debugging
 
@@ -255,7 +291,7 @@ The application contains multiple radar configuration header files, generated by
 
 #### Indoor presence detection (indoor_presence_detection.h)
 
-Presence detection usecase detects static targets as well as micro motion targets with field of view, without using post-processing on MCU. It shows the capability of BGT60CUTR13 on-chip signal processing. For indoor localization scenarios up to 9m.
+Presence detection usecase detects static targets as well as micro motion targets with field of view, without using post-processing on MCU. It shows the capability of BGT60CUTR13AIP on-chip signal processing. For indoor localization scenarios up to 9m.
 
 - Update rate:
   - Shape set repeats at 4 Hz (RD + ULP sequence combined)
@@ -273,7 +309,9 @@ Presence detection usecase detects static targets as well as micro motion target
 
 ### Application execution
 
-After initialization, the application runs in an event-driven way. The radar interrupt is used to notify the MCU, and main task then triggers the motion detection module to read the radar registers and decode them to meaningful user event output. The output is sent to then sent via serial terminal to PC in json format to display the number of detected targets and their range, speed and angle.
+After initialization, the application runs in an event-driven way. The radar interrupt is used to notify the MCU, and main task then triggers the motion detection module to read the radar registers and decode them to meaningful user event output. The output is sent via serial terminal to the PC in JSON format to display the number of detected targets and their range, speed, and angle.
+
+A protocol handler runs on every loop iteration to process incoming host commands. The supported commands include `get_info`, which returns the firmware version and sensor information.
 
 ```mermaid
 flowchart TD
@@ -297,7 +335,7 @@ This analysis is obtained by enabling `MEASURE_PROCESSING_TIME` in the firmware,
 
 For detailed information about the measurement methodology and build settings, see the [runtime information test documentation](../../tests/runtime-information-algo/README.md).
 
-**Table 3. Runtime information based on clock speed 100.00 MHz**
+#### Table 3. Runtime information based on clock speed 100.00 MHz
 
 Algorithm | Min (µs) | Max (µs) | Avg (µs)
 ----------|----------|----------|----------
@@ -312,7 +350,7 @@ Code examples  | [Using ModusToolbox&trade;](https://github.com/Infineon/Code-Ex
 Device documentation | [PSOC&trade; 6 MCU datasheets](https://documentation.infineon.com/html/psoc6/bnm1651211483724.html) <br> [PSOC&trade; 6 technical reference manuals](https://documentation.infineon.com/html/psoc6/zrs1651212645947.html)<br> [PSOC&trade; 4 datasheets](https://www.infineon.com/cms/en/search.html?intc=searchkwr-return#!view=downloads&term=psoc%204&doc_group=Data%20Sheet) <br>[PSOC&trade; 4 technical reference manuals](https://www.infineon.com/cms/en/search.html#!term=psoc%204%20technical%20reference%20manual&view=all)
 Development kits | Select your kits from the [Evaluation board finder](https://www.infineon.com/cms/en/design-support/finder-selection-tools/product-finder/evaluation-board)
 Libraries on GitHub  | [mtb-pdl-cat1](https://github.com/Infineon/mtb-pdl-cat1) – PSOC&trade; 6 Peripheral Driver Library (PDL)  <br> [mtb-hal-cat1](https://github.com/Infineon/mtb-hal-cat1) – Hardware Abstraction Layer (HAL) library <br> [retarget-io](https://github.com/Infineon/retarget-io) – Utility library to retarget STDIO messages to a UART port <br>  [mtb-pdl-cat2](https://github.com/Infineon/mtb-pdl-cat2) – PSOC&trade; 4 Peripheral Driver Library (PDL) <br>  [mtb-hal-cat2](https://github.com/Infineon/mtb-hal-cat2) – Hardware Abstraction Layer (HAL) library
-Middleware on GitHub  | [sensor-xensiv-bgt60cutrxx](https://github.com/Infineon/sensor-xensiv-bgt60cutrxx) – Driver library for Xensiv CMOS radar sensor and documents <br> [psoc6-middleware](https://github.com/Infineon/modustoolbox-software#psoc-6-middleware-libraries) – Links to all PSOC&trade; 6 MCU middleware
+Middleware on GitHub  | [sensor-xensiv-bgt60cutrxx](https://github.com/Infineon/sensor-xensiv-bgt60cutrxx) – Driver library for XENSIV&trade; CMOS radar sensor and documents <br> [psoc6-middleware](https://github.com/Infineon/modustoolbox-software#psoc-6-middleware-libraries) – Links to all PSOC&trade; 6 MCU middleware
 Tools  | [ModusToolbox&trade;](https://www.infineon.com/modustoolbox) – ModusToolbox&trade; software is a collection of easy-to-use libraries and tools enabling rapid development with Infineon MCUs for applications ranging from wireless and cloud-connected systems, edge AI/ML, embedded sense and control, to wired USB connectivity using PSOC&trade; Industrial/IoT MCUs, AIROC&trade; Wi-Fi and Bluetooth&reg; connectivity devices, XMC&trade; Industrial MCUs, and EZ-USB&trade;/EZ-PD&trade; wired connectivity controllers. ModusToolbox&trade; incorporates a comprehensive set of BSPs, HAL, libraries, configuration tools, and provides support for industry-standard IDEs to fast-track your embedded application development
 
 <br>
@@ -329,7 +367,9 @@ Document title: *CE242645* – *PSOC&trade; 6 MCU: Motion detection using XENSIV
 
  Version | Description of change
  ------- | ---------------------
+ 1.1.0   | Updated software requirements and hardware setup sections<br>Added JSON protocol module with host command handling (`get_info`)<br>Default power mode changed to deep sleep<br>Startup messages converted to protocol output
  1.0.0   | New code example
+
 
 <br>
 
@@ -341,7 +381,7 @@ PSOC&trade;, formerly known as PSoC&trade;, is a trademark of Infineon Technolog
 
 ---------------------------------------------------------
 
-(c) 2025, Infineon Technologies AG, or an affiliate of Infineon Technologies AG. All rights reserved.
+(c) 2026, Infineon Technologies AG, or an affiliate of Infineon Technologies AG. All rights reserved.
 This software, associated documentation and materials ("Software") is owned by Infineon Technologies AG or one of its affiliates ("Infineon") and is protected by and subject to worldwide patent protection, worldwide copyright laws, and international treaty provisions. Therefore, you may use this Software only as provided in the license agreement accompanying the software package from which you obtained this Software. If no license agreement applies, then any use, reproduction, modification, translation, or compilation of this Software is prohibited without the express written permission of Infineon.
 <br>
 Disclaimer: UNLESS OTHERWISE EXPRESSLY AGREED WITH INFINEON, THIS SOFTWARE IS PROVIDED AS-IS, WITH NO WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING, BUT NOT LIMITED TO, ALL WARRANTIES OF NON-INFRINGEMENT OF THIRD-PARTY RIGHTS AND IMPLIED WARRANTIES SUCH AS WARRANTIES OF FITNESS FOR A SPECIFIC USE/PURPOSE OR MERCHANTABILITY. Infineon reserves the right to make changes to the Software without notice. You are responsible for properly designing, programming, and testing the functionality and safety of your intended application of the Software, as well as complying with any legal requirements related to its use. Infineon does not guarantee that the Software will be free from intrusion, data theft or loss, or other breaches (“Security Breaches”), and Infineon shall have no liability arising out of any Security Breaches. Unless otherwise explicitly approved by Infineon, the Software may not be used in any application where a failure of the Product or any consequences of the use thereof can reasonably be expected to result in personal injury.

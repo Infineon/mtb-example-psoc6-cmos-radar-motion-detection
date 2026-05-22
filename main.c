@@ -29,11 +29,14 @@
 #include "cy_retarget_io.h"
 #include <stdbool.h>
 #include "common.h"
+#include "protocol.h"
 #include "radar_motion_detection.h"
 #include "resource_map.h"
 #include "radar_config/indoor_motion_low_power.h"
+#include "version.h"
 #include "xensiv_bgt60cutrxx_mtb.h"
 #include "xensiv_bgt60cutrxx_regs.h"
+
 
 /*******************************************************************************
 * Macros
@@ -47,7 +50,7 @@
  */
 #define UART_BAUDRATE 2000000
 
-/** Default SPI speed for the XENSIV BGT60CUTRXX sensor, which is used during startup */
+/** Default SPI speed for the XENSIV BGT60CUTRxx sensor, which is used during startup */
 #define SPI_FREQUENCY               (18750000UL) // 18.75MHz
 
 /*******************************************************************************
@@ -104,7 +107,7 @@ static xensiv_bgt60cutrxx_mtb_iface_config_t mcu_iface_config =
 *******************************************************************************/
 
 /**
- * @brief Interrupt handler for the XENSIV BGT60CUTRXX radar sensor.
+ * @brief Interrupt handler for the XENSIV BGT60CUTRxx radar sensor.
  *
  * This function is called when a radar interrupt occurs. It sets the radar_event_irq
  * flag to signal the main loop that radar data is ready for processing.
@@ -130,7 +133,7 @@ static int32_t xensiv_bgt60cutrxx_board_init(void)
     /* Enable LDO */
     result |= cyhal_gpio_init(PIN_XENSIV_BGT60CUTRXX_LDO_EN, CYHAL_GPIO_DIR_OUTPUT, CYHAL_GPIO_DRIVE_STRONG, 1);
 
-    /* Set specific pins to disable BGT60CUTRXX bootloader */
+    /* Set specific pins to disable BGT60CUTRxx bootloader */
     result |= cyhal_gpio_init(PIN_XENSIV_BGT60CUTRXX_DIO2, CYHAL_GPIO_DIR_OUTPUT, CYHAL_GPIO_DRIVE_STRONG, 1);
     result |= cyhal_gpio_init(PIN_XENSIV_BGT60CUTRXX_DIO3, CYHAL_GPIO_DIR_OUTPUT, CYHAL_GPIO_DRIVE_STRONG, 1);
 
@@ -217,7 +220,7 @@ static void print_elapsed_time(uint32_t counter)
  *
  * This function performs the following operations:
  * - Initializes the device, board peripherals, and UART for debug output
- * - Configures GPIO pins and SPI interface for the XENSIV BGT60CUTRXX radar sensor
+ * - Configures GPIO pins and SPI interface for the XENSIV BGT60CUTRxx radar sensor
  * - Sets up the radar sensor with interrupt-driven data acquisition
  * - Initializes motion detection with range-doppler and ultra-low-power sequences
  * - Enters an infinite loop processing radar interrupts, detecting motion
@@ -262,47 +265,46 @@ int main(void)
 
     // wait until UART is ready
     cyhal_system_delay_ms(5000);
+    protocol_print_info("******************");
+    protocol_print_info("RADAR: Motion Detection Example ");
+    protocol_print_info("******************");
 
-    // Transmit ANSI ESC sequence to clear terminal screen
-    printf("\x1b" "[2J" "\x1b" "[;H");   /* MISRA 4.1: Escape sequences are properly terminated */
+    protocol_print_info("For more projects, "
+                        "visit our code examples repositories:");
 
-    printf("****************** "
-           "RADAR: Motion Detection Example "
-           "****************** \r\n\n");
-
-    printf("For more projects, "
-           "visit our code examples repositories:\r\n\n");
-
-    printf("https://github.com/Infineon/"
-           "Code-Examples-for-ModusToolbox-Software\r\n\n");
+    protocol_print_info("https://github.com/Infineon/"
+                        "Code-Examples-for-ModusToolbox-Software");
 
     result = xensiv_bgt60cutrxx_board_init();
     result |= xensiv_bgt60cutrxx_platform_open(&sensor.iface, &mcu_iface_config);
     if (XENSIV_BGT60CUTRXX_STATUS_OK != result)
     {
-        printf("Error initializing platform interfaces\n");
+        protocol_print_error("Error initializing platform interfaces");
         CY_ASSERT(0);
         return 1;
     }
 
     // Radar sensor initialization
-    result = xensiv_bgt60cutrxx_platform_init(&sensor, &mcu_iface_config, register_list, ARRAY_SIZE(register_list));
+    xensiv_bgt60cutrxx_power_mode_t power_mode = DEEP_SLEEP_MODE;
+    bool deep_sleep_after_calibration = false;
+    result = xensiv_bgt60cutrxx_platform_init(&sensor, &mcu_iface_config, register_list, ARRAY_SIZE(
+                                                  register_list), power_mode, deep_sleep_after_calibration);
     if (XENSIV_BGT60CUTRXX_STATUS_OK != result)
     {
-        printf("Error initializing radar sensor\n");
+        protocol_print_error("Error initializing radar sensor");
         CY_ASSERT(0);
         return 1;
     }
-    printf("Radar sensor is initialized\n\r");
+    protocol_print_info("Radar sensor is initialized");
 
     result = xensiv_bgt60cutrxx_platform_irq_init(&sensor, &mcu_iface_config, &xensiv_bgt60cutrxx_irq_handler, NULL);
     if (XENSIV_BGT60CUTRXX_STATUS_OK != result)
     {
-        printf("Error initializing radar IRQ handler\n");
+        protocol_print_error("Error initializing radar IRQ handler");
         CY_ASSERT(0);
         return 1;
     }
-    printf("Radar IRQ handler for motion detection events is enabled\n\r");
+    protocol_print_info("Radar IRQ handler for motion detection events is enabled");
 
     #if MD_RD_ENABLED
     // Radar Motion Detection initialization
@@ -337,25 +339,31 @@ int main(void)
                                          );
     if (XENSIV_BGT60CUTRXX_STATUS_OK != result)
     {
-        printf("Radar Motion Detection initialization failed\n");
+        protocol_print_error("Radar Motion Detection initialization failed");
         CY_ASSERT(0);
         return 1;
     }
-    printf("Radar Motion Detection is initialized\n\r");
+    protocol_print_info("Radar Motion Detection is initialized");
+
+    protocol_set_app_info(USE_CASE_NAME, VERSION, VERSION_BUILD);
+    protocol_set_sensor_info("BGT60CUTR13B", VERSION, false,
+                             sensor.dev.clk_freq_xtal == BGT60CUTRXX_CLK_80MHZ ? 80.0f : 40.0f);
 
     radar_event_irq = false;
     uint32_t irq_status = 0;
     xensiv_bgt60cutrxx_get_irq_status(motion_detection.radar_sensor, &irq_status);
     xensiv_bgt60cutrxx_set_irq_clear(motion_detection.radar_sensor, BGT60CUTR13B_IR_CLEAR_FOR_STARTUP_MSK);
 
-
     while (true)
     {
+        static uint32_t counter = 0;
+
+        protocol_handler(counter);
+
         if (radar_event_irq)
         {
             //clear internal interrupt flag
             radar_event_irq = false;
-            static uint32_t counter = 0;
 
             // Process radar motion detection
             timer_start();
@@ -363,11 +371,11 @@ int main(void)
             motion_detection_elapsed_us = timer_get_elapsed_us();
             if (md_result < 0)
             {
-                printf("Motion Detection process error: %ld\n", md_result);
+                protocol_print_error("Motion Detection process error: %" PRId32, md_result);
                 CY_ASSERT(0);
                 return 1;
             }
-            print_detections(&motion_detection, counter);
+            print_detections(&motion_detection, counter, true);
             print_elapsed_time(counter);
             counter++;
         }

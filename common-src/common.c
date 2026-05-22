@@ -23,6 +23,36 @@
 
 #include "common.h"
 #include "xensiv_bgt60cutrxx_regs.h"
+#include <stdbool.h>
+
+#define MAX_RANGE_ZONES 32
+
+static float zone_ranges[MAX_RANGE_ZONES + 1];
+static float zone_angles[8] = { -78.75, -56.25, -33.75, -11.25, 11.25, 33.75, 56.25, 78.75 };
+static algo_zoning_event_t zone_config = { 0 };
+
+const algo_zoning_event_t* get_zone_config(float range_resolution_m, uint32_t samples_per_chirp,
+                                           uint8_t num_range_zones)
+{
+    float range_max = range_resolution_m * samples_per_chirp / 2.0f;
+    float range_step = range_max / num_range_zones;
+
+    for (uint8_t i = 0; i < num_range_zones + 1; i++)
+    {
+        zone_ranges[i] = i * range_step;
+    }
+
+    zone_config.num_ranges = num_range_zones + 1;
+    zone_config.ranges = zone_ranges;
+    zone_config.num_azimuths = sizeof(zone_angles) / sizeof(zone_angles[0]);
+    zone_config.azimuths = zone_angles;
+    zone_config.num_elevations = sizeof(zone_angles) / sizeof(zone_angles[0]);
+    zone_config.elevations = zone_angles;
+    zone_config.num_actives = 0;
+    zone_config.active = NULL;
+
+    return &zone_config;
+}
 
 
 void print_presence(bool presence, uint32_t counter)
@@ -35,14 +65,20 @@ void print_presence(bool presence, uint32_t counter)
 }
 
 
-void print_detections(motion_detection_t* motion_detection, uint32_t counter)
+void print_detections(motion_detection_t* motion_detection, uint32_t counter, bool print_attributes)
 {
     uint16_t type = 0;
     bool target_detected = false;
 
     printf("{\"ts\": %" PRIu32 ", \"detections\": {", counter);
-    printf(
-        "\"attributes\":[\"range_m\",\"azimuth_deg\",\"elevation_deg\",\"magnitude_dBFS\",\"speed_mps\",\"rx_idx\",\"range_bin\",\"doppler_bin\",\"sequence_num\",\"type\",\"seq_count_1\",\"seq_count_2\",\"ir_stat\"], \"data\": [");
+
+    if (print_attributes)
+    {
+        printf(
+            "\"attributes\":[\"range_m\",\"azimuth_deg\",\"elevation_deg\",\"magnitude_dBFS\",\"speed_mps\",\"rx_idx\",\"range_bin\",\"doppler_bin\",\"sequence_num\",\"type\",\"seq_count_1\",\"seq_count_2\",\"ir_stat\"],");
+    }
+
+    printf("\"data\": [");
 
     if (motion_detection->seq1_done)
     {
@@ -61,7 +97,7 @@ void print_detections(motion_detection_t* motion_detection, uint32_t counter)
     {
         // check if targets are detected then print the targets and in case of no targets are detected, print an empty
         // array
-        if ((motion_detection->processed_targets[i].antenna_rx > 0.0f) ||
+        if ((motion_detection->processed_targets[i].antenna_rx > 0) ||
             ((i == (BGT60CUTR13_PROCESSED_MD_TARGET_MAX - 1)) && !target_detected))
         {
             if (target_detected)
@@ -69,7 +105,7 @@ void print_detections(motion_detection_t* motion_detection, uint32_t counter)
                 printf(", ");
             }
             target_detected = true;
-            printf("[%.2f, %.2f, %.2f, %.2f, %.2f, %.2f, %d, %d, %d, %d, %d, %d, %" PRIu32 "]",
+            printf("[%.2f, %.2f, %.2f, %.2f, %.2f, %d, %d, %d, %d, %d, %d, %d, %" PRIu32 "]",
                    motion_detection->processed_targets[i].range_m,
                    motion_detection->processed_targets[i].azimuth_deg,
                    motion_detection->processed_targets[i].elevation_deg,
@@ -91,65 +127,45 @@ void print_detections(motion_detection_t* motion_detection, uint32_t counter)
 
 void print_clutter_zones(clutter_localization_t* clutter, uint32_t counter)
 {
-    static clutter_localization_state_t previous_state = CLUTTER_LOCALIZATION_STATE_IDLE;
+    static clutter_localization_state_t previous_state = CLUTTER_LOCALIZATION_STATE_ZONES_RESET;
+    static char* event_type = NULL;
+    static bool is_azimuth_clutter = false;
     bool target_detected = false;
 
-
     //only print the zones if the exclusion zone registers are written
-    if (clutter->register_update_state == previous_state)
+    if ((clutter->register_update_state == previous_state) && (clutter->period_counter_ticks != 0))
     {
         return;
     }
 
-    printf("{\"ts\": %" PRIu32 ", \"zones\": {", counter);
-
-    // print only the plane which has been written to the sensor
-    if (clutter->MD_ZONE_CTRL ==
-        (BGT60CUTR13B_MD_ZONE_CTRL_PLANE_SEL_E_PLANE << BGT60CUTR13B_MD_ZONE_CTRL_PLANE_SEL_pos))
+    if (clutter->register_update_state != CLUTTER_LOCALIZATION_STATE_ZONES_RESET)
     {
-        printf("\"azimuths\": [");
-        for (uint8_t r_zone = 0; r_zone < CLUTTER_LOCALIZATION_NUM_RANGE_ZONES; r_zone++)
-        {
-            for (uint8_t a_zone = 0; a_zone < CLUTTER_LOCALIZATION_NUM_ANGLE_ZONES; a_zone++)
-            {
-                if (clutter->zone_marker_e_neighboring[r_zone][a_zone] >= CLUTTER_LOCALIZATION_EXCLUSION_VALUE)
-                {
-                    if (target_detected)
-                    {
-                        printf(", ");
-                    }
-                    target_detected = true;
-                    printf("[%d, %d]", r_zone, a_zone);
-                }
-            }
-        }
-        // print empty elevations array
-        printf("], \"elevations\": []}");
-    }
-    else
-    {
-        target_detected = false;
-        printf("\"elevations\": [");
-        for (uint8_t r_zone = 0; r_zone < CLUTTER_LOCALIZATION_NUM_RANGE_ZONES; r_zone++)
-        {
-            for (uint8_t a_zone = 0; a_zone < CLUTTER_LOCALIZATION_NUM_ANGLE_ZONES; a_zone++)
-            {
-                if (clutter->zone_marker_h_neighboring[r_zone][a_zone] >= CLUTTER_LOCALIZATION_EXCLUSION_VALUE)
-                {
-                    if (target_detected)
-                    {
-                        printf(", ");
-                    }
-                    target_detected = true;
-                    printf("[%d, %d]", r_zone, a_zone);
-                }
-            }
-        }
-        // print empty azimuths array
-        printf("], \"azimuths\": []}");
+        is_azimuth_clutter = clutter->zone_registers.MD_ZONE_CTRL ==
+                             (BGT60CUTR13B_MD_ZONE_CTRL_PLANE_SEL_E_PLANE << BGT60CUTR13B_MD_ZONE_CTRL_PLANE_SEL_pos);
+        event_type = is_azimuth_clutter ? "azimuth_clutter" : "elevation_clutter";
     }
 
-    printf("}\n");
+    // convert register to zone marker array
+    zone_marker_array_t zone_marker = { 0 };
+    clutter_localization_map_registers_to_zones(clutter, &zone_marker);
+
+    printf("{\"ts\": %" PRIu32 ", \"%s\": {\"active\":[", counter, event_type);
+    for (uint8_t r_zone = 0; r_zone < CLUTTER_LOCALIZATION_NUM_RANGE_ZONES; r_zone++)
+    {
+        for (uint8_t a_zone = 0; a_zone < CLUTTER_LOCALIZATION_NUM_ANGLE_ZONES; a_zone++)
+        {
+            if (zone_marker[r_zone][a_zone] >= CLUTTER_LOCALIZATION_EXCLUSION_VALUE)
+            {
+                if (target_detected)
+                {
+                    printf(", ");
+                }
+                target_detected = true;
+                printf("[%d, %d]", r_zone, a_zone);
+            }
+        }
+    }
+    printf("]}}\n");
     previous_state = clutter->register_update_state;
 }
 
@@ -182,14 +198,19 @@ void print_calibration_data(xensiv_bgt60cutrxx_calibration_data_t* calibration_s
 }
 
 
-void print_clustering_results(clustering_t* clustering, uint32_t counter)
+void print_clustering_results(clustering_t* clustering, uint32_t counter, bool print_attributes)
 {
     const uint16_t type = 3;  // clustering centroid type
     const uint32_t dummy = 0;
 
     printf("{\"ts\": %" PRIu32 ", \"detections\": {", counter);
-    printf(
-        "\"attributes\":[\"range_m\",\"azimuth_deg\",\"elevation_deg\",\"magnitude_dBFS\",\"speed_mps\",\"rx_idx\",\"range_bin\",\"doppler_bin\",\"sequence_num\",\"type\",\"seq_count_1\",\"seq_count_2\",\"ir_stat\"], \"data\": [");
+    if (print_attributes)
+    {
+        printf(
+            "\"attributes\":[\"range_m\",\"azimuth_deg\",\"elevation_deg\",\"magnitude_dBFS\",\"speed_mps\",\"rx_idx\",\"range_bin\",\"doppler_bin\",\"sequence_num\",\"type\",\"seq_count_1\",\"seq_count_2\",\"ir_stat\"],");
+    }
+
+    printf("\"data\": [");
 
     if (clustering->num_clusters == 0)
     {
@@ -236,6 +257,74 @@ void print_clustering_results(clustering_t* clustering, uint32_t counter)
         }
         printf("]}}\n");
     }
+}
+
+
+void print_algo_zoning_event(const algo_zoning_event_t* event, uint32_t counter)
+{
+    bool first = true;
+    printf("{\"ts\": %" PRIu32 ", \"zones\":{", counter);
+
+    if ((event->num_ranges > 0) && (event->ranges != NULL))
+    {
+        printf("\"ranges\":[");
+        first = false;
+        for (uint8_t i = 0; i < event->num_ranges; i++)
+        {
+            if (i > 0)
+            {
+                printf(",");
+            }
+            printf("%.2f", event->ranges[i]);
+        }
+        printf("]");
+    }
+
+    if ((event->num_azimuths > 0) && (event->azimuths != NULL))
+    {
+        printf("%s\"azimuths\":[", first ? "" : ",");
+        first = false;
+        for (uint8_t i = 0; i < event->num_azimuths; i++)
+        {
+            if (i > 0)
+            {
+                printf(",");
+            }
+            printf("%.2f", event->azimuths[i]);
+        }
+        printf("]");
+    }
+
+    if ((event->num_elevations > 0) && (event->elevations != NULL))
+    {
+        printf("%s\"elevations\":[", first ? "" : ",");
+        first = false;
+        for (uint8_t i = 0; i < event->num_elevations; i++)
+        {
+            if (i > 0)
+            {
+                printf(",");
+            }
+            printf("%.2f", event->elevations[i]);
+        }
+        printf("]");
+    }
+
+    if ((event->num_actives > 0) && (event->active != NULL))
+    {
+        printf("%s\"active\":[", first ? "" : ",");
+        for (uint8_t i = 0; i < event->num_actives; i++)
+        {
+            if (i > 0)
+            {
+                printf(",");
+            }
+            printf("[%" PRIu8 ",%" PRIu8 "]", event->active[i][0], event->active[i][1]);
+        }
+        printf("]");
+    }
+
+    printf("}}\n");
 }
 
 
