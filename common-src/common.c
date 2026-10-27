@@ -48,6 +48,7 @@ const algo_zoning_event_t* get_zone_config(float range_resolution_m, uint32_t sa
     zone_config.azimuths = zone_angles;
     zone_config.num_elevations = sizeof(zone_angles) / sizeof(zone_angles[0]);
     zone_config.elevations = zone_angles;
+
     zone_config.num_actives = 0;
     zone_config.active = NULL;
 
@@ -167,6 +168,50 @@ void print_clutter_zones(clutter_localization_t* clutter, uint32_t counter)
     }
     printf("]}}\n");
     previous_state = clutter->register_update_state;
+}
+
+
+void print_clutter_zones_current(clutter_localization_t* clutter, uint32_t counter)
+{
+    if (clutter == NULL)
+    {
+        return;
+    }
+
+    // Determine event type from current register state
+    const char* event_type;
+    if (clutter->register_update_state == CLUTTER_LOCALIZATION_STATE_ZONES_RESET)
+    {
+        // No zones have been set yet — nothing to report
+        return;
+    }
+
+    bool is_azimuth_clutter = clutter->zone_registers.MD_ZONE_CTRL ==
+                              (BGT60CUTR13B_MD_ZONE_CTRL_PLANE_SEL_E_PLANE << BGT60CUTR13B_MD_ZONE_CTRL_PLANE_SEL_pos);
+    event_type = is_azimuth_clutter ? "azimuth_clutter" : "elevation_clutter";
+
+    // Convert registers to zone marker array
+    zone_marker_array_t zone_marker = { 0 };
+    clutter_localization_map_registers_to_zones(clutter, &zone_marker);
+
+    bool first = true;
+    printf("{\"ts\": %" PRIu32 ", \"%s\": {\"active\":[", counter, event_type);
+    for (uint8_t r_zone = 0; r_zone < CLUTTER_LOCALIZATION_NUM_RANGE_ZONES; r_zone++)
+    {
+        for (uint8_t a_zone = 0; a_zone < CLUTTER_LOCALIZATION_NUM_ANGLE_ZONES; a_zone++)
+        {
+            if (zone_marker[r_zone][a_zone] >= CLUTTER_LOCALIZATION_EXCLUSION_VALUE)
+            {
+                if (!first)
+                {
+                    printf(", ");
+                }
+                first = false;
+                printf("[%d, %d]", r_zone, a_zone);
+            }
+        }
+    }
+    printf("]}}\n");
 }
 
 
@@ -319,7 +364,7 @@ void print_algo_zoning_event(const algo_zoning_event_t* event, uint32_t counter)
             {
                 printf(",");
             }
-            printf("[%" PRIu8 ",%" PRIu8 "]", event->active[i][0], event->active[i][1]);
+            printf("[\"%d\",\"%d\"]", event->active[i][0], event->active[i][1]);
         }
         printf("]");
     }

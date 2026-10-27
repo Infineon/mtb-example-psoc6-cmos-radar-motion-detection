@@ -56,6 +56,34 @@ typedef struct
     uint16_t crc;                               /**< CRC checksum */
 } protocol_message_t;
 
+/** Radar acquisition parameters of a streamed radar frame */
+typedef struct
+{
+    uint32_t num_tx;                    /**< Number of transmit antennas */
+    uint32_t num_rx;                    /**< Number of receive antennas */
+    uint32_t num_chirps;                /**< Number of chirps per radar frame */
+    uint32_t num_samples_per_chirp;     /**< Number of samples per chirp */
+    /** Distance between two range bins in meters, which the host needs to label a range axis.
+     * 0 when the application does not know it. */
+    float range_resolution_m;
+} protocol_radar_config_t;
+
+/** Description of the RTT stream, as the host needs it to attach and decode */
+typedef struct
+{
+    /** Address of the SEGGER RTT control block, as an integer because it is only ever reported
+     * to the host as a number and never dereferenced here */
+    uintptr_t control_block;
+    uint32_t adc_length_bytes;          /**< Size of the raw ADC section, 0 if disabled */
+    uint32_t rfft_length_bytes;         /**< Size of the range FFT section, 0 if disabled */
+    uint32_t dfft_length_bytes;         /**< Size of the Doppler FFT section, 0 if disabled */
+    /** True if the sensor left-aligns a sample in its transfer word (SPI_CTRL.MSB_ALIGN_EN).
+     * The host needs it to scale a sample and it differs between configurations, so read it
+     * back from the sensor rather than hard-coding it. */
+    bool msb_aligned;
+    protocol_radar_config_t radar_config; /**< Acquisition parameters, authoritative for the host */
+} protocol_rtt_info_t;
+
 /*******************************************************************************
 * Function Prototypes
 *******************************************************************************/
@@ -87,6 +115,20 @@ void protocol_set_sensor_info(const char* sensor_name, const char* driver_versio
                               float xtal_mhz);
 
 /**
+ * @brief Registers the description of the RTT stream.
+ *
+ * Only an application that streams radar frames over RTT calls this. The get_info response
+ * carries an `rtt` block only once it has been called, so the response of every other
+ * application is unchanged.
+ *
+ * The structure is stored by reference and must outlive every get_info response, so it is
+ * expected to have static storage duration.
+ *
+ * @param info Description of the stream, or NULL to stop reporting one.
+ */
+void protocol_set_rtt_info(const protocol_rtt_info_t* info);
+
+/**
  * @brief Sets the zoning configuration.
  *
  * This function sets the zoning configuration for the algorithm.
@@ -94,6 +136,16 @@ void protocol_set_sensor_info(const char* sensor_name, const char* driver_versio
  * @param config Pointer to the zoning configuration structure.
  */
 void protocol_set_zone_config(const algo_zoning_event_t* config);
+
+/**
+ * @brief Sets the clutter localization reference for on-demand reporting.
+ *
+ * When set, the protocol handler will print the current clutter zone state
+ * as part of the get_info response.
+ *
+ * @param clutter Pointer to the clutter localization instance (or NULL to disable).
+ */
+void protocol_set_clutter_info(clutter_localization_t* clutter);
 
 /**
  * @brief Prints informational messages in a structured format.
@@ -116,6 +168,16 @@ void protocol_print_info(const char* format, ...);
  * @param ... Additional arguments for the format string.
  */
 void protocol_print_error(const char* format, ...);
+
+/**
+ * @brief Reports the cumulative number of radar frames lost, in the form the host parses.
+ *
+ * Emits a single `{"frames_dropped": N}` line. The host classifies this message by its
+ * field name, so a generic info message is not an equivalent substitute.
+ *
+ * @param frames_dropped Cumulative number of radar frames that could not be delivered.
+ */
+void protocol_print_frames_dropped(uint32_t frames_dropped);
 
 /**
  * @brief Handles the protocol operations.

@@ -117,6 +117,18 @@ void print_detections(motion_detection_t* motion_detection, uint32_t counter, bo
  */
 void print_clutter_zones(clutter_localization_t* clutter, uint32_t counter);
 
+/** @brief Prints the current clutter zones unconditionally in JSON format.
+ *
+ * Unlike print_clutter_zones(), this function always prints the current zone state
+ * without checking whether the register_update_state has changed. It does not
+ * modify any internal static state. Use this for on-demand reporting (e.g. in
+ * response to a get_info command).
+ *
+ * @param clutter Pointer to the clutter localization structure containing clutter zone data.
+ * @param counter The current timestamp or counter value.
+ */
+void print_clutter_zones_current(clutter_localization_t* clutter, uint32_t counter);
+
 
 /** @brief Prints the calibration data in JSON format.
  *

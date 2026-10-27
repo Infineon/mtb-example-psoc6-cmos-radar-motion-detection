@@ -42,6 +42,7 @@
 * Static Variables
 *******************************************************************************/
 static const algo_zoning_event_t* zoning_config = NULL;
+static clutter_localization_t* clutter_ref = NULL;
 
 /** Circular buffer for received data */
 static uint8_t rx_buffer[PROTOCOL_BUFFER_SIZE];
@@ -68,6 +69,7 @@ static const char* protocol_sensor_name = NULL;
 static const char* protocol_sensor_driver_version = NULL;
 static bool protocol_sensor_is_configurable = false;
 static float protocol_sensor_crystal_freq_mhz = 0.0f;
+static const protocol_rtt_info_t* protocol_rtt_info = NULL;
 
 /*******************************************************************************
 * Static Function Prototypes
@@ -116,9 +118,21 @@ void protocol_set_sensor_info(const char* sensor_name, const char* driver_versio
 }
 
 
+void protocol_set_rtt_info(const protocol_rtt_info_t* info)
+{
+    protocol_rtt_info = info;
+}
+
+
 void protocol_set_zone_config(const algo_zoning_event_t* config)
 {
     zoning_config = config;
+}
+
+
+void protocol_set_clutter_info(clutter_localization_t* clutter)
+{
+    clutter_ref = clutter;
 }
 
 
@@ -141,6 +155,12 @@ void protocol_print_error(const char* format, ...)
     vprintf(format, args);
     printf("\"}\n");
     va_end(args);
+}
+
+
+void protocol_print_frames_dropped(uint32_t frames_dropped)
+{
+    printf("{\"frames_dropped\": %" PRIu32 "}\n", frames_dropped);
 }
 
 
@@ -359,11 +379,30 @@ static void handle_get_info(void)
         ",\"event_info\":{\"types\":{\"azimuth_clutter\":\"zones\",\"elevation_clutter\":\"zones\"}, \"detection_type_mapping\":{\"1\":\"ULP\", \"2\":\"RD\", \"3\":\"ULP Clustered\"}}");
 
     printf(
-        ",\"sensor_info\":{\"driver_version\":\"%s\",\"name\": \"%s\", \"is_configurable\": %s, \"xtal_mhz\": %.2f}}\n",
+        ",\"sensor_info\":{\"driver_version\":\"%s\",\"name\": \"%s\", \"is_configurable\": %s, \"xtal_mhz\": %.2f}",
         protocol_sensor_driver_version != NULL ? protocol_sensor_driver_version : "Unknown",
         protocol_sensor_name != NULL ? protocol_sensor_name : "BGT60CUTRXX",
         protocol_sensor_is_configurable ? "true" : "false",
         protocol_sensor_crystal_freq_mhz);
+
+    if (protocol_rtt_info != NULL)
+    {
+        // the key order of data_and_payload_length_bytes defines the on-wire section order
+        printf(
+            ",\"rtt\":{\"addr\": \"0x%08" PRIXPTR "\", \"data_and_payload_length_bytes\":{\"adc\": %" PRIu32 ", \"rfft\": %" PRIu32 ", \"dfft\": %" PRIu32 "}, \"msb_aligned\": %s, \"radar_config\":{\"num_tx\": %" PRIu32 ", \"num_rx\": %" PRIu32 ", \"num_chirps\": %" PRIu32 ", \"num_samples_per_chirp\": %" PRIu32 ", \"range_resolution_m\": %.6f}}",
+            protocol_rtt_info->control_block,
+            protocol_rtt_info->adc_length_bytes,
+            protocol_rtt_info->rfft_length_bytes,
+            protocol_rtt_info->dfft_length_bytes,
+            protocol_rtt_info->msb_aligned ? "true" : "false",
+            protocol_rtt_info->radar_config.num_tx,
+            protocol_rtt_info->radar_config.num_rx,
+            protocol_rtt_info->radar_config.num_chirps,
+            protocol_rtt_info->radar_config.num_samples_per_chirp,
+            (double)protocol_rtt_info->radar_config.range_resolution_m);
+    }
+
+    printf("}\n");
 }
 
 
@@ -397,6 +436,10 @@ static uint32_t command_handler(protocol_message_t* message, uint32_t counter)
     if (result && (zoning_config != NULL))
     {
         print_algo_zoning_event(zoning_config, counter);
+    }
+    if (result && (clutter_ref != NULL))
+    {
+        print_clutter_zones_current(clutter_ref, counter);
     }
     return result;
 }

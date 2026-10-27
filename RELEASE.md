@@ -4,6 +4,18 @@
 
 This code example demonstrates Infineon's radar capabilities by implementing the on-chip feature for motion detection on the CSK hardware platform
 
+### 1.1.7
+
+#### Add
+- `RD_MAX_RANGE_M`, `RD_MAX_VELOCITY_MPS`, `RD_RX_ANTENNAS_MASK` and their `ULP_` counterparts in every radar configuration header, so the instrumental range, the unambiguous velocity and the active receive antennas are available to the application without recomputing them
+
+#### Change
+- Radar configurations regenerated with `ifx_smartar_hal` v2.4.7, which corrects the Doppler velocity grids and the burst repetition times of all indoor and outdoor configurations
+- `indoor_motion_medium_power` (and its Japan variant) now acquires 16 range-Doppler chirps instead of 1, 15 of them after MTI, with the ADC calibration read addresses adjusted accordingly. The reported velocities change from a grid spanning ±68 m/s to one spanning ±3.2 m/s, which is the range a moving person is actually detected in
+
+#### Fixed
+- ADC calibration no longer leaves `SEQ3_DONE` latched in `IR_STAT`; the sensor driver clears it through `IR_CLEAR` once calibration has completed
+
 ### 1.1.0 (public release)
 
 #### Add
